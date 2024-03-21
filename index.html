@@ -192,7 +192,7 @@ function main() {
     canvas.addEventListener('mousemove', (e) => {
       const rect = canvas.getBoundingClientRect();
       mouseX = e.clientX - rect.left;
-      mouseY = rect.height - (e.clientY - rect.top); // WebGL origin is bottom left
+      mouseY = e.clientY - rect.top;
     });
 
     gl.useProgram(programInfo.program);
