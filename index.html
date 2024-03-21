@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GLSL Polar Transformation</title>
+<style>
+  body { margin: 0; }
+  canvas { width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<canvas id="glcanvas"></canvas>
+<script type="text/javascript">
+// Vertex shader program
+const vsSource = `
+  attribute vec4 aVertexPosition;
+  attribute vec2 aTextureCoord;
+  varying highp vec2 vTextureCoord;
+  void main(void) {
+    gl_Position = aVertexPosition;
+    vTextureCoord = aTextureCoord;
+  }
+`;
+
+// Fragment shader program
+const fsSource = `
+  varying highp vec2 vTextureCoord;
+  uniform sampler2D uSampler;
+  uniform vec2 uMouse;
+  uniform vec2 uResolution;
+  void main(void) {
+    highp vec2 coords = vTextureCoord * uResolution;
+    coords -= uMouse;
+    highp float angle = atan(coords.y, coords.x);
+    highp float radius = length(coords);
+    highp vec2 polarCoords = vec2((angle + 3.14159265) / (2.0 * 3.14159265), radius / (0.5 * min(uResolution.x, uResolution.y)));
+    highp vec4 color = texture2D(uSampler, polarCoords);
+    gl_FragColor = color;
+  }
+`;
+
+function initShaderProgram(gl, vsSource, fsSource) {
+  const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+  const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+  // Create the shader program
+  const shaderProgram = gl.createProgram();
+  gl.attachShader(shaderProgram, vertexShader);
+  gl.attachShader(shaderProgram, fragmentShader);
+  gl.linkProgram(shaderProgram);
+
+  if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+    alert('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
+    return null;
+  }
+
+  return shaderProgram;
+}
+
+function loadShader(gl, type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    alert('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
+    gl.deleteShader(shader);
+    return null;
+  }
+
+  return shader;
+}
+
+function loadImage(url, callback) {
+  const image = new Image();
+  image.onload = function() { callback(image); };
+  image.src = url;
+}
+
+function main() {
+  const canvas = document.getElementById('glcanvas');
+  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+
+  if (!gl) {
+    alert('Unable to initialize WebGL. Your browser may not support it.');
+    return;
+  }
+
+  const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+  const programInfo = {
+    program: shaderProgram,
+    attribLocations: {
+      vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+      textureCoord: gl.getAttribLocation(shaderProgram, 'aTextureCoord'),
+    },
+    uniformLocations: {
+      uSampler: gl.getUniformLocation(shaderProgram, 'uSampler'),
+      uMouse: gl.getUniformLocation(shaderProgram, 'uMouse'),
+      uResolution: gl.getUniformLocation(shaderProgram, 'uResolution'),
+    },
+  };
+
+  // Define positions for the square
+  const positions = [
+    -1.0,  1.0,
+     1.0,  1.0,
+    -1.0, -1.0,
+     1.0, -1.0,
+  ];
+
+  // Define texture coordinates for the square
+  const textureCoordinates = [
+    0.0,  0.0,
+    1.0,  0.0,
+    0.0,  1.0,
+    1.0,  1.0,
+  ];
+
+  // Create a buffer for square's positions.
+  const positionBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+  // Create a buffer for the square's texture coordinates
+  const textureCoordBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
+
+  // Load texture
+  loadImage('your_texture.jpg', function(image) {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    // Set the parameters so we can render any size image.
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    // Upload the image into the texture.
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+
+    // Tell WebGL we want to affect texture unit 0
+    gl.activeTexture(gl.TEXTURE0);
+
+    // Bind the texture to texture unit 0
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    // Tell the shader we bound the texture to texture unit 0
+    gl.uniform1i(programInfo.uniformLocations.uSampler, 0);
+
+    // Look up where the vertex data needs to go.
+    {
+      const numComponents = 2; // pull out 2 values per iteration
+      const type = gl.FLOAT;   // the data in the buffer is 32bit floats
+      const normalize = false; // don't normalize
+      const stride = 0;        // how many bytes to get from one set of values to the next
+      const offset = 0;        // how many bytes inside the buffer to start from
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.vertexAttribPointer(
+          programInfo.attribLocations.vertexPosition,
+          numComponents,
+          type,
+          normalize,
+          stride,
+          offset);
+      gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
+    }
+
+    // Tell WebGL how to pull out the texture coordinates from buffer
+    {
+      const numComponents = 2;  // every coordinate composed of 2 values
+      const type = gl.FLOAT;    // the data in the buffer is 32 bit float
+      const normalize = false;  // do not normalize
+      const stride = 0;         // show many bytes to get from one set to the next
+      const offset = 0;         // how many bytes inside the buffer to start from
+      gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+      gl.vertexAttribPointer(
+          programInfo.attribLocations.textureCoord,
+          numComponents,
+          type,
+          normalize,
+          stride,
+          offset);
+      gl.enableVertexAttribArray(programInfo.attribLocations.textureCoord);
+    }
+
+    let mouseX = 0;
+    let mouseY = 0;
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = rect.height - (e.clientY - rect.top); // WebGL origin is bottom left
+    });
+
+    function render() {
+      gl.clearColor(0.0, 0.0, 0.0, 1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+
+      // Update canvas size and resolution uniform
+      if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+        gl.uniform2f(programInfo.uniformLocations.uResolution, gl.drawingBufferWidth, gl.drawingBufferHeight);
+      }
+
+      // Update mouse position uniform
+      gl.uniform2f(programInfo.uniformLocations.uMouse, mouseX, mouseY);
+
+      gl.useProgram(programInfo.program);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+  });
+}
+
+window.onload = main;
+
+</script>
+</body>
+</html>
