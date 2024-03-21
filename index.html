@@ -12,7 +12,8 @@
 <canvas id="glcanvas"></canvas>
 <script type="text/javascript">
 // Vertex shader program
-const vsSource = `
+const vsSource = `precision mediump float;
+
   attribute vec4 aVertexPosition;
   attribute vec2 aTextureCoord;
   varying highp vec2 vTextureCoord;
@@ -23,7 +24,8 @@ const vsSource = `
 `;
 
 // Fragment shader program
-const fsSource = `
+const fsSource = `precision mediump float;
+
   varying highp vec2 vTextureCoord;
   uniform sampler2D uSampler;
   uniform vec2 uMouse;
@@ -147,7 +149,7 @@ function main() {
     gl.bindTexture(gl.TEXTURE_2D, texture);
 
     // Tell the shader we bound the texture to texture unit 0
-    gl.uniform1i(programInfo.uniformLocations.uSampler, 0);
+    //gl.uniform1i(programInfo.uniformLocations.uSampler, 0);
 
     // Look up where the vertex data needs to go.
     {
@@ -193,6 +195,10 @@ function main() {
       mouseY = rect.height - (e.clientY - rect.top); // WebGL origin is bottom left
     });
 
+    gl.useProgram(programInfo.program);
+    // Tell the shader we bound the texture to texture unit 0
+    gl.uniform1i(programInfo.uniformLocations.uSampler, 0);
+
     function render() {
       gl.clearColor(0.0, 0.0, 0.0, 1.0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -208,7 +214,6 @@ function main() {
       // Update mouse position uniform
       gl.uniform2f(programInfo.uniformLocations.uMouse, mouseX, mouseY);
 
-      gl.useProgram(programInfo.program);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
       requestAnimationFrame(render);
