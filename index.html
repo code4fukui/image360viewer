@@ -30,12 +30,20 @@ const fsSource = `precision mediump float;
   uniform sampler2D uSampler;
   uniform vec2 uMouse;
   uniform vec2 uResolution;
+
+  #define PI 3.14159265
+
   void main(void) {
     highp vec2 coords = vTextureCoord * uResolution;
     coords -= uMouse;
-    highp float angle = atan(coords.y, coords.x);
+    highp float angle = atan(coords.y, coords.x) + PI + ((uMouse.x / uResolution.x - 0.5) * 2.0 * PI);
+    if (angle < 0.0) angle += 2.0 * PI;
+    if (angle > 2.0 * PI) angle -= 2.0 * PI;
     highp float radius = length(coords);
-    highp vec2 polarCoords = vec2((angle + 3.14159265) / (2.0 * 3.14159265), radius / (0.5 * min(uResolution.x, uResolution.y)));
+    highp vec2 polarCoords = vec2(
+      angle / (2.0 * PI),
+      radius / (0.8 * min(uResolution.x, uResolution.y)) + uMouse.y / (uResolution.y * 1.0) - .5
+    );
     highp vec4 color = texture2D(uSampler, polarCoords);
     gl_FragColor = color;
   }
